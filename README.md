@@ -3,17 +3,14 @@
 ![Python](https://img.shields.io/badge/Python-Flask-3776AB?logo=python&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-Koyeb-2496ED?logo=docker&logoColor=white) ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 
 这是一个为诺基亚 (Nokia)、索爱 (Sony Ericsson) 等支持 WAP/XHTML Mobile 1.0 的老手机设计的 QQ 网页版中转服务端。
-
 通过部署本项目，你可以让老手机重新连上现代的 QQ 群，实现文字聊天、看图、发图、发表情，甚至群网盘文件的互通
 
 ## ✨ 核心功能
-* **双端并发架构**：一套系统同时提供两种不同的访问体验
+* **双端架构**：一套系统同时提供两种不同的访问体验
   * **WAP/HTML 端** (访问 `/`)：为现代智能手机、触屏设备优化，包含暗色主题、图片/文件附件上传、Emoji 等功能。
   * **WML 端** (访问 `/wml/`)：原汁原味的 WML 1.1 纯净页面，专为二十年前的诺基亚、索爱等上古机器设计。并自带**自适应转换**，若用电脑访问 `/wml/` 会自动转换为可视化的 XHTML MP1.0。
-* **极致轻量**：无任何庞大 JS 框架，最低兼容至老系统自带的浏览器。
-* **双向互通**：对接 QQ 机器人 (NapCatQQ)，手机发的消息能立刻到 QQ 群，群友发的消息手机也能实时看到。
-* **富文本解析**：自动过滤现代设备发来的杂乱信息，将长图、表情、语音、视频、卡片消息转化为老手机能看懂的纯文字提示。
-* **云端存储**：接入 MongoDB Atlas (聊天记录与账号持久化) 和 Cloudflare R2 (图片与群文件存储)，不占本地或容器硬盘空间。
+* **富文本解析**：自动过滤现代设备发来的信息，将长图、表情、语音、视频、卡片消息转化为老手机能看懂的纯文字提示。
+* **云端存储**：接入 MongoDB Atlas (聊天记录与账号持久化) 和 Cloudflare R2 (图片与群文件存储)。
 * **管理员系统**：防爆破设计。新用户注册需管理员通过专属接口审批放行。
 
 ## 🏗️ 架构说明
