@@ -1895,7 +1895,7 @@ def upload_image():
         return '<script type="text/javascript">/* <![CDATA[ */window.parent.uploadCallback("error", "未选择任何照片");/* ]]> */</script>'
 
     try:
-        img = Image.open(file)
+        img = Image.open(file.stream)
         if img.mode != "RGB":
             img = img.convert("RGB")
 
@@ -2076,7 +2076,7 @@ def upload_file():
         current_time_str = datetime.datetime.now(TZ_UTC8).strftime("%H:%M:%S")
 
         safe_user = html.escape(username)
-        safe_filename = html.escape(filename)
+        safe_filename = html.escape(filename or "")
 
         web_display_text = f"[网页-{location}]{safe_user}: <span style='color:#008800;'>[发送了文件: {safe_filename}]</span> <a href='/api/download_file?id={file_id}' target='_blank' style='color: blue; text-decoration:underline;'>[下载]</a>"
 
@@ -2171,198 +2171,277 @@ def view_drive():
     )
 
 
-# ==========================================
-# WML 界面专属自适应与路由
-# ==========================================
-
 def is_mobile_device(req):
-    accept_header = req.headers.get('Accept', '').lower()
-    if 'text/vnd.wap.wml' in accept_header:
+    accept_header = req.headers.get("Accept", "").lower()
+    if "text/vnd.wap.wml" in accept_header:
         return True
-    if req.headers.get('X-Wap-Profile') or req.headers.get('Profile'):
+    if req.headers.get("X-Wap-Profile") or req.headers.get("Profile"):
         return True
-    ua = req.headers.get('User-Agent', '').lower()
+    ua = req.headers.get("User-Agent", "").lower()
     mobile_keywords = [
-        'nokia', 'symbian', 'ucweb', 'opera', 'wap',
-        'motorola', 'mot-', 'sonyericsson', 'samsung', 'lg',
-        'blackberry', 'j2me', 'midp', 'cldc', 'up.browser',
-        'netfront', 'obigo', 'teleca', 'openwave'
+        "nokia",
+        "symbian",
+        "ucweb",
+        "opera",
+        "wap",
+        "motorola",
+        "mot-",
+        "sonyericsson",
+        "samsung",
+        "lg",
+        "blackberry",
+        "j2me",
+        "midp",
+        "cldc",
+        "up.browser",
+        "netfront",
+        "obigo",
+        "teleca",
+        "openwave",
     ]
     return any(k in ua for k in mobile_keywords)
+
 
 def adapt_wml_to_xhtmlmp(wml_str, target_card=None):
     if target_card:
         wml_str = re.sub(r'href="#([^"]+)"', r'href="?card=\1"', wml_str)
-        match = re.search(f'<card id="{target_card}"[^>]*>.*?</card>', wml_str, flags=re.DOTALL)
+        match = re.search(
+            f'<card id="{target_card}"[^>]*>.*?</card>', wml_str, flags=re.DOTALL
+        )
         if match:
-            wml_str = re.sub(r'<card.*?</card>', '', wml_str, flags=re.DOTALL)
-            wml_str = wml_str.replace('</wml>', f'{match.group(0)}\n</wml>')
+            wml_str = re.sub(r"<card.*?</card>", "", wml_str, flags=re.DOTALL)
+            wml_str = wml_str.replace("</wml>", f"{match.group(0)}\n</wml>")
 
-    html = re.sub(r'<\?xml.*?\?>', '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">', wml_str)
-    html = re.sub(r'<!DOCTYPE wml.*?>', '', html, flags=re.DOTALL)
-    html = html.replace('<wml>', '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>WapChat QQ</title></head><body>')
-    html = html.replace('</wml>', '</body></html>')
-    
+    html = re.sub(
+        r"<\?xml.*?\?>",
+        '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">',
+        wml_str,
+    )
+    html = re.sub(r"<!DOCTYPE wml.*?>", "", html, flags=re.DOTALL)
+    html = html.replace(
+        "<wml>",
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>WapChat QQ</title></head><body>',
+    )
+    html = html.replace("</wml>", "</body></html>")
+
     def replace_card(m):
         card_id = m.group(1)
         title = m.group(2)
-        if card_id in ['login', 'chat', 'options', 'rename']:
+        if card_id in ["login", "chat", "options", "rename"]:
             return f'<div id="{card_id}">'
         else:
             return f'<div id="{card_id}"><h2>{title}</h2>'
-            
+
     html = re.sub(r'<card id="([^"]+)" title="([^"]+)">', replace_card, html)
-    html = html.replace('</card>', '</div>')
-    html = html.replace('<h2>WapChat QQ</h2>', '')
-    html = re.sub(r'emptyok="[^"]+"', '', html)
-    html = re.sub(r'format="[^"]+"', '', html)
-    html = html.replace('<p align="left">', '<div>').replace('<p>', '<div>').replace('</p>', '</div>')
+    html = html.replace("</card>", "</div>")
+    html = html.replace("<h2>WapChat QQ</h2>", "")
+    html = re.sub(r'emptyok="[^"]+"', "", html)
+    html = re.sub(r'format="[^"]+"', "", html)
+    html = (
+        html.replace('<p align="left">', "<div>")
+        .replace("<p>", "<div>")
+        .replace("</p>", "</div>")
+    )
 
     if 'id="login"' in html:
-        html = html.replace('账号:<input', '<form action="/wml/login" method="post">账号:<input')
-        html = re.sub(r'<anchor>\[登录\].*?name="login_btn".*?</anchor>', r'<input type="submit" name="login_btn" value="登录"/>', html, flags=re.DOTALL)
-        html = re.sub(r'<anchor>\[注册\].*?name="register_btn".*?</anchor>', r'<input type="submit" name="register_btn" value="注册"/></form>', html, flags=re.DOTALL)
+        html = html.replace(
+            "账号:<input", '<form action="/wml/login" method="post">账号:<input'
+        )
+        html = re.sub(
+            r'<anchor>\[登录\].*?name="login_btn".*?</anchor>',
+            r'<input type="submit" name="login_btn" value="登录"/>',
+            html,
+            flags=re.DOTALL,
+        )
+        html = re.sub(
+            r'<anchor>\[注册\].*?name="register_btn".*?</anchor>',
+            r'<input type="submit" name="register_btn" value="注册"/></form>',
+            html,
+            flags=re.DOTALL,
+        )
 
     if 'id="chat"' in html:
-        html = html.replace('发言:<input', '<form action="/wml/" method="post" style="display:inline;">发言:<input')
-        html = re.sub(r'<anchor>\[发送\].*?</anchor>', r'<input type="submit" value="发送"/></form>', html, flags=re.DOTALL)
-        html = re.sub(r'<anchor>\[刷新\].*?</anchor>', r'<form action="/wml/" method="post" style="display:inline; margin-left:4px;"><input type="hidden" name="r" value="1"/><input type="submit" value="刷新"/></form>', html, flags=re.DOTALL)
-    
+        html = html.replace(
+            "发言:<input",
+            '<form action="/wml/" method="post" style="display:inline;">发言:<input',
+        )
+        html = re.sub(
+            r"<anchor>\[发送\].*?</anchor>",
+            r'<input type="submit" value="发送"/></form>',
+            html,
+            flags=re.DOTALL,
+        )
+        html = re.sub(
+            r"<anchor>\[刷新\].*?</anchor>",
+            r'<form action="/wml/" method="post" style="display:inline; margin-left:4px;"><input type="hidden" name="r" value="1"/><input type="submit" value="刷新"/></form>',
+            html,
+            flags=re.DOTALL,
+        )
+
     if 'id="rename"' in html:
-        html = html.replace('新昵称:<input', '<form action="/wml/rename_wml" method="post" style="display:inline;">新昵称:<input')
-        html = re.sub(r'<anchor>\[确认保存\].*?</anchor>', r'<input type="submit" value="确认保存"/></form>', html, flags=re.DOTALL)
+        html = html.replace(
+            "新昵称:<input",
+            '<form action="/wml/rename_wml" method="post" style="display:inline;">新昵称:<input',
+        )
+        html = re.sub(
+            r"<anchor>\[确认保存\].*?</anchor>",
+            r'<input type="submit" value="确认保存"/></form>',
+            html,
+            flags=re.DOTALL,
+        )
 
     return html
 
-@app.route('/wml/login', methods=['GET', 'POST'])
+
+@app.route("/wml/login", methods=["GET", "POST"])
 def wml_login_page():
     def render_adaptive_login(error=None, success=None):
         raw_content = render_template_string(LOGIN_WML, error=error, success=success)
         if is_mobile_device(request):
             resp = make_response(raw_content)
-            resp.headers['Content-Type'] = 'text/vnd.wap.wml; charset=utf-8'
+            resp.headers["Content-Type"] = "text/vnd.wap.wml; charset=utf-8"
         else:
             pc_content = adapt_wml_to_xhtmlmp(raw_content)
             resp = make_response(pc_content)
-            resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+            resp.headers["Content-Type"] = "text/html; charset=utf-8"
         return resp
 
-    if request.method == 'GET':
-        account = session.get('nokia_account')
-        if account and account in users_db and users_db[account].get('status') != 'pending':
-            return redirect(url_for('wml_index'))
-            
+    if request.method == "GET":
+        account = session.get("nokia_account")
+        if (
+            account
+            and account in users_db
+            and users_db[account].get("status") != "pending"
+        ):
+            return redirect(url_for("wml_index"))
+
         return render_adaptive_login()
-    
-    account = request.form.get('account', '').strip()
-    password = request.form.get('password', '').strip()
+
+    account = request.form.get("account", "").strip()
+    password = request.form.get("password", "").strip()
 
     if not account or not password:
         return render_adaptive_login(error="账号和密码不能为空！")
-        
-    if not re.match(r'^[A-Za-z0-9_]{3,15}$', account):
+
+    if not re.match(r"^[A-Za-z0-9_]{3,15}$", account):
         return render_adaptive_login(error="账号仅限3-15位字母数字下划线！")
-    
-    if request.form.get('register_btn') == '1':
+
+    if request.form.get("register_btn") == "1":
         MAX_TOTAL_ACCOUNTS = 500
         if len(users_db) >= MAX_TOTAL_ACCOUNTS:
             return render_adaptive_login(error="服务器名额满，暂停注册！")
 
         if account in users_db:
             return render_adaptive_login(error="账号已存在，请直接登录！")
-        
+
         client_ip = get_real_ip(request)
-        MAX_ACCOUNTS_PER_IP = 1  
-        ip_reg_count = sum(1 for user_info in users_db.values() if user_info.get('ip') == client_ip)
-        
+        MAX_ACCOUNTS_PER_IP = 1
+        ip_reg_count = sum(
+            1 for user_info in users_db.values() if user_info.get("ip") == client_ip
+        )
+
         if ip_reg_count >= MAX_ACCOUNTS_PER_IP:
             return render_adaptive_login(error="您的IP已达到注册上限！")
-        
+
         users_db[account] = {
-            "password": password, 
-            "nickname": account, 
+            "password": password,
+            "nickname": account,
             "ip": client_ip,
-            "status": "pending" 
+            "status": "pending",
         }
-        save_users()
-        
+        users_collection.update_one(
+            {"_id": account},
+            {
+                "$set": {
+                    "password": password,
+                    "nickname": account,
+                    "ip": client_ip,
+                    "status": "pending",
+                }
+            },
+            upsert=True,
+        )
+
         cloudflare_verify_url = f"http://verify.ekiz.top/?account={account}"
         return redirect(cloudflare_verify_url)
-        
-    else:  # 登录
+
+    else:
         user_doc = users_collection.find_one({"_id": account})
         if user_doc:
             users_db[account] = {
                 "password": user_doc.get("password"),
                 "nickname": user_doc.get("nickname"),
                 "ip": user_doc.get("ip"),
-                "status": user_doc.get("status", "active")
+                "status": user_doc.get("status", "active"),
             }
 
-        if account not in users_db or users_db[account]['password'] != password:
+        if account not in users_db or users_db[account]["password"] != password:
             return render_adaptive_login(error="账号或密码错误！")
-            
-        if users_db[account].get('status') == 'pending':
+
+        if users_db[account].get("status") == "pending":
             return render_adaptive_login(error="账号待审核，请联系群主！")
-            
+
         session.permanent = True
-        session['nokia_account'] = account
-        return redirect('/wml/')
+        session["nokia_account"] = account
+        return redirect("/wml/")
 
-@app.route('/wml/logout', methods=['GET'])
+
+@app.route("/wml/logout", methods=["GET"])
 def wml_logout():
-    session.pop('nokia_account', None)
-    return redirect('/wml/login')
+    session.pop("nokia_account", None)
+    return redirect("/wml/login")
 
-@app.route('/wml', methods=['GET', 'POST'])
+
+@app.route("/wml", methods=["GET", "POST"])
 def wml_index_no_slash():
-    # 显式拦截 /wml，返回相对路径重定向，防止 Flask 默认的绝对路径重定向导致域名暴露为 koyeb 内部域名
-    return redirect('/wml/')
+    return redirect("/wml/")
 
-@app.route('/wml/', methods=['GET', 'POST'])
+
+@app.route("/wml/", methods=["GET", "POST"])
 def wml_index():
     global chat_history, current_msg_id, recent_sent_messages
-    account = session.get('nokia_account')
-    
-    if not account or account not in users_db:
-        return redirect('/wml/login')
-        
-    if users_db[account].get('status') == 'pending':
-        session.pop('nokia_account', None)
-        return redirect('/wml/login')
+    account = session.get("nokia_account")
 
-    if request.method == 'POST':
-        msg_text = request.form.get('message', '').strip()
+    if not account or account not in users_db:
+        return redirect("/wml/login")
+
+    if users_db[account].get("status") == "pending":
+        session.pop("nokia_account", None)
+        return redirect("/wml/login")
+
+    if request.method == "POST":
+        msg_text = request.form.get("message", "").strip()
         client_ip = get_real_ip(request)
-        
+
         if msg_text and msg_text != ip_last_message.get(client_ip, ""):
-            ip_last_message[client_ip] = msg_text 
-            
+            ip_last_message[client_ip] = msg_text
+
             filtered_msg = filter_emoji(msg_text)
-            username = users_db[account].get('nickname', account)
+            username = users_db[account].get("nickname", account)
             location = get_ip_location(client_ip, request)
-            
+
             full_message = f"[{location} - {username}] {filtered_msg}"
-            
+
             try:
-                resp = requests.post('http://127.0.0.1:3000/send_group_msg', json={
-                    "group_id": TARGET_GROUP_ID,
-                    "message": full_message
-                }, timeout=3).json()
-                
+                resp = requests.post(
+                    "http://127.0.0.1:3000/send_group_msg",
+                    json={"group_id": TARGET_GROUP_ID, "message": full_message},
+                    timeout=3,
+                ).json()
+
                 qq_msg_id = None
                 if resp and resp.get("status") in ["ok", "success"]:
                     qq_msg_id = resp.get("data", {}).get("message_id")
 
                 current_msg_id += 1
-                
+
                 recent_sent_messages.append(re.sub(r"\s+", "", full_message))
                 if len(recent_sent_messages) > 50:
                     recent_sent_messages.pop(0)
 
                 safe_user = html.escape(username)
                 safe_text = html.escape(filtered_msg).replace("\n", "<br/>")
-                
+
                 safe_text = re.sub(
                     r"\[@([^\]]+)\]",
                     r'<span class="action-reply">[@\1]</span>',
@@ -2373,7 +2452,7 @@ def wml_index():
                     r'<span class="action-reply">@\1</span>',
                     safe_text,
                 )
-                
+
                 web_display_text = f"[网页-{location}]{safe_user}: {safe_text}"
                 current_time_str = datetime.datetime.now(TZ_UTC8).strftime("%H:%M:%S")
 
@@ -2392,68 +2471,73 @@ def wml_index():
                 if len(chat_history) > 50:
                     chat_history.pop(0)
 
-                # WML 原样执行到底部，但是如果是 PC 且是 POST 操作，为了防刷新建议 Redirect
                 if not is_mobile_device(request):
-                    return redirect('/wml/')
+                    return redirect("/wml/")
             except Exception as e:
                 print(f"WML 发送失败: {e}")
-                
-        if not is_mobile_device(request) and request.method == 'POST':
-            return redirect('/wml/')
+
+        if not is_mobile_device(request) and request.method == "POST":
+            return redirect("/wml/")
 
     recent_history_raw = chat_history[-20:] if len(chat_history) >= 20 else chat_history
-    
-    # 构建 WML 专属格式的历史记录
+
     wml_history = []
     for m in recent_history_raw:
         wml_msg = dict(m)
-        raw_text = m.get('text', '')
-        # 清除 a 标签的多余属性，仅保留 href
-        clean_text = re.sub(r'<a href=([\'"])([^\'"]+)\1[^>]*>(.*?)</a>', r'<a href="\2">\3</a>', raw_text)
-        # 移除跨度标签
-        clean_text = re.sub(r'</?span[^>]*>', '', clean_text)
-        wml_msg['wml_text'] = clean_text
+        raw_text = m.get("text", "")
+        clean_text = re.sub(
+            r'<a href=([\'"])([^\'"]+)\1[^>]*>(.*?)</a>',
+            r'<a href="\2">\3</a>',
+            raw_text,
+        )
+        clean_text = re.sub(r"</?span[^>]*>", "", clean_text)
+        wml_msg["wml_text"] = clean_text
         wml_history.append(wml_msg)
-        
-    # 倒序显示（因为 WML 里是最新的在上面）
+
     wml_history.reverse()
 
     user_doc = users_collection.find_one({"_id": account})
     if user_doc:
-        users_db[account]['nickname'] = user_doc.get('nickname', account)
-        users_db[account]['status'] = user_doc.get('status', 'active')
+        users_db[account]["nickname"] = user_doc.get("nickname", account)
+        users_db[account]["status"] = user_doc.get("status", "active")
 
-    saved_username = users_db[account].get('nickname', account)
+    saved_username = users_db[account].get("nickname", account)
     saved_username = filter_emoji(saved_username)
-    
+
     online_sessions[account] = time.time()
     current_online = get_online_count()
-    
-    raw_content = render_template_string(NOKIA_WML, history=wml_history, saved_username=saved_username, online_count=current_online)
+
+    raw_content = render_template_string(
+        NOKIA_WML,
+        history=wml_history,
+        saved_username=saved_username,
+        online_count=current_online,
+    )
     if is_mobile_device(request):
         resp = make_response(raw_content)
-        resp.headers['Content-Type'] = 'text/vnd.wap.wml; charset=utf-8'
+        resp.headers["Content-Type"] = "text/vnd.wap.wml; charset=utf-8"
     else:
-        target_card = request.args.get('card', 'chat')
+        target_card = request.args.get("card", "chat")
         pc_content = adapt_wml_to_xhtmlmp(raw_content, target_card)
         resp = make_response(pc_content)
-        resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
     return resp
 
-@app.route('/wml/rename_wml', methods=['POST'])
+
+@app.route("/wml/rename_wml", methods=["POST"])
 def wml_rename():
-    account = session.get('nokia_account')
+    account = session.get("nokia_account")
     if not account or account not in users_db:
-        return redirect('/wml/login')
-        
-    new_name = request.form.get('new_name', '').strip()
+        return redirect("/wml/login")
+
+    new_name = request.form.get("new_name", "").strip()
     if new_name:
         new_name = new_name[:15]
         new_name = filter_emoji(new_name)
-        users_db[account]['nickname'] = new_name
-        save_users()
-        
-    return redirect('/wml/')
+        users_db[account]["nickname"] = new_name
+        users_collection.update_one({"_id": account}, {"$set": {"nickname": new_name}})
+
+    return redirect("/wml/")
 
 
 @app.route("/", methods=["GET"])
@@ -2529,7 +2613,7 @@ def handle_nokia_ajax():
 
     if msg_text:
         current_time = time.time()
-        last_time = ip_last_send_time.get(client_ip, 0)
+        last_time = float(ip_last_send_time.get(client_ip, 0) or 0)
         last_msg_content = ip_last_message.get(client_ip, "")
 
         clean_msg = re.sub(r"[^\w\u4e00-\u9fa5]", "", msg_text).lower()
